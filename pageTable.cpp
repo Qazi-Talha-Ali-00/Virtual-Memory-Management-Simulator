@@ -1,21 +1,25 @@
-#include<bits/stdc++.h>
+#include <unordered_map>
 using namespace std;
 
-class PageTableEntry{
-    public:
-    int frame; // address of the frame
+class PageTableEntry {
+public:
+    int frame; // Frame number in main memory, -1 if not present
     bool dirty; // Modified or not
-    bool present; // Is present in the main memory or not
-    int reference; // has it been referenced earlier or not
-    // basic constructor
-     PageTableEntry(){
-        dirty = false;
-        present = false;
-        reference = false;
-    }
+    bool present; // Is present in main memory or not
+    bool reference; // Has it been referenced earlier or not
+
+    PageTableEntry() : frame(-1), dirty(false), present(false), reference(false) {}
 };
-class PageTable{
-    int Pid;
-    // key is page number 
-    unordered_map<int,PageTableEntry*> table;
+
+class PageTable {
+public:
+    int Pid; // Process ID
+    unordered_map<int, PageTableEntry> table; // Page number -> PageTableEntry
+
+    PageTable(int id) : Pid(id) {}
+
+    // Access or create an entry for a specific page
+    PageTableEntry& getEntry(int pageNum) {
+        return table[pageNum];
+    }
 };
