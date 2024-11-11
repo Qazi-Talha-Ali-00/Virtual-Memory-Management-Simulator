@@ -13,6 +13,7 @@ FrameTable frame_arr;
 vector<mutex> mtx;
 queue<int> fifoQueue;    // Used for FIFO
 vector<int> accessOrder; // Used for MRU and LRU
+mutex rep;
 
 int getByte(int number)
 {
@@ -24,52 +25,105 @@ int getPage(int number, int pid)
     return number / PAGE_SIZE;
 }
 // FIFO eviction policy
-int evictFIFO() {
-    return 0;
-  
+int evictFIFO()
+{
+    rep.lock();
+    if (fifoQueue.empty())
+        return -1; // No frame to evict
+    int frame = fifoQueue.front();
+    fifoQueue.pop();
+    rep.unlock();
+    return frame;
 }
 // // MRU eviction policy
-int evictMRU() {
-    return 0;
-   
+int evictMRU()
+{
+    rep.lock();
+    if (accessOrder.empty())
+        return -1; // No frame to evict
+    int frame = accessOrder.back();
+    accessOrder.pop_back();
+    rep.unlock();
+    return frame;
 }
 // // LRU eviction policy
-int evictLRU() {
-   return 0;
+int evictLRU()
+{
+    rep.lock();
+    if (accessOrder.empty())
+        return -1; // No frame to evict
+    int frame = accessOrder.front();
+    accessOrder.erase(accessOrder.begin());
+    rep.unlock();
+    return frame;
 }
 
-int evictOptimal(){
-    return 0;
-
+int evictOptimal()
+{
+    return -1;
 }
 
-Page *pageFault(int number, int pid,PageTable &P)
+Page *pageFault(int number, int pid, PageTable &P)
 {
 
     // Traverse the main memory to see if any place is left to load the page and load it there
-    int page = getPage(number,pid);
+    int page = getPage(number, pid);
     int address = mem.getAddress(pid);
-    for(int i=0;i<main_arr.memory.size();i++){
-        if(main_arr.memory[i]->data[0] == '0'){
+    for (int i = 0; i < main_arr.memory.size(); i++)
+    {
+        if (main_arr.memory[i]->data[0] == '0')
+        {
             // copy from the seondary memory to main memory
+            mtx[i].lock();
             main_arr.memory[i] = secondary_arr.Smemory[address];
             frame_arr.frameTable[i]->pageNum = page;
             frame_arr.frameTable[i]->Pid = pid;
             P.table[page]->setFrame(i);
             P.table[page]->setPresent(true);
+            rep.lock();
+            if (policy == "FIFO")
+                fifoQueue.push(i);
+            if (policy == "MRU" || policy == "LRU")
+                accessOrder.push_back(i);
+            rep.unlock();
+            mtx[i].unlock();
             return main_arr.memory[i];
         }
     }
     // else eviction scheme
-    int evict = -1;
-    if(policy == "LRU"){
-        evict = evictLRU();
-    }else if(policy == "FIFO"){
-        evict = evictFIFO();
-    }else if(policy == "MRU"){
-        evict = evictMRU();
-    }else{
-        evict = evictOptimal();
+    int evictFrame = -1;
+    if (policy == "LRU")
+        evictFrame = evictLRU();
+    else if (policy == "FIFO")
+        evictFrame = evictFIFO();
+    else if (policy == "MRU")
+        evictFrame = evictMRU();
+    else
+        evictFrame = evictOptimal();
+
+    if (evictFrame != -1)
+    {
+        mtx[evictFrame].lock();
+
+        int evictedPage = frame_arr.frameTable[evictFrame]->pageNum;
+        int evictedPid = frame_arr.frameTable[evictFrame]->Pid;
+
+        auto element = mem.process[evictedPid];
+        element->table[evictedPage]->setPresent(false);
+        main_arr.memory[evictFrame] = secondary_arr.Smemory[address];
+        frame_arr.frameTable[evictFrame]->pageNum = page;
+        frame_arr.frameTable[evictFrame]->Pid = P.getPid();
+        P.table[page]->setPresent(true);
+        P.table[page]->setFrame(evictFrame);
+        rep.lock();
+        if (policy == "FIFO")
+            fifoQueue.push(evictFrame);
+        if (policy == "MRU" || policy == "LRU")
+            accessOrder.push_back(evictFrame);
+        rep.unlock();
+
+        mtx[evictFrame].unlock();
+        return main_arr.memory[evictFrame];
     }
     return NULL;
 }
@@ -111,8 +165,12 @@ void MMU(PageTable &P)
         {
             // Page fault
             miss++;
-            pageFault(number,P.getPid(),P);
-            
+
+            auto element = pageFault(number, P.getPid(), P);
+            if (element != NULL)
+            {
+                fout << element->data[byte] << endl;
+            }
         }
         else
         {
@@ -126,6 +184,8 @@ void MMU(PageTable &P)
             fout << c << endl;
         }
     }
+    fout << "Total number of hits ->" << hit << endl;
+    fout << "Total number of miss ->" << miss << endl;
     fout.close();
     fin.close();
 }
@@ -148,6 +208,8 @@ int main()
     PageTable P1(1, 500), P2(2, 1000);
     mem.addProcess(1, instanceCreate(secondary_arr, 500));
     mem.addProcess(2, instanceCreate(secondary_arr, 1000));
+    mem.process[1] = &P1;
+    mem.process[2] = &P2;
 
     thread t1(MMU, ref(P1));
     thread t2(MMU, ref(P2));

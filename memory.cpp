@@ -44,7 +44,7 @@ class secondaryMemory{
 class MemoryTable {
 public:
     unordered_map<int, int> processStartPage;  // Maps Pid to starting page in secondary memory
-
+    unordered_map<int,PageTable*> process;
     // Method to update starting address for a process
     void addProcess(int pid, int startPage) {
         processStartPage[pid] = startPage;
