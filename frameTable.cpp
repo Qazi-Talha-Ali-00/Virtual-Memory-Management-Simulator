@@ -78,7 +78,9 @@ public:
     }
     bool isPresent(int pageNum){
         bool value=false;
-        value = table[pageNum]->getPresent();
+        if(pageNum>=0 && pageNum < table.size()){
+            value = table[pageNum]->getPresent();
+        }
         return value;
     }
 
