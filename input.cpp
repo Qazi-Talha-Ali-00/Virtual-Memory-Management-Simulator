@@ -6,6 +6,7 @@ int LAS;  // Logical address space in bits
 int PAS;  // Physical address space in bits
 
 pair<long long,long long> input() {
+    cout<<"************************************************************************"<<endl;
     cout << "Enter the Page size in bytes: ";
     cin >> PAGE_SIZE;
     cout << "Enter the logical address space (in bytes): ";
