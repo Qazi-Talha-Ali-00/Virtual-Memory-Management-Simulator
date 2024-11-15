@@ -2,6 +2,7 @@
 #include<cstdlib>
 #include<iostream>
 #include<unordered_map>
+#include"frameTable.cpp"
 using namespace std;
 class Page{
     public:

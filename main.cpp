@@ -1,6 +1,5 @@
 #include <bits/stdc++.h>
 #include "input.cpp"
-#include "frameTable.cpp"
 #include "memory.cpp"
 #include "replace_init.cpp"
 #include <thread>
@@ -14,7 +13,32 @@ vector<mutex> mtx;
 queue<int> fifoQueue;    // Used for FIFO
 vector<int> accessOrder; // Used for MRU and LRU
 mutex rep;
+unordered_map<int, unordered_map<int, vector<int>>> processAccessMap;
 
+void populateAccessMap(int pid, const string& inputFile)
+{
+    unordered_map<int, vector<int>> accessMap;
+    ifstream fin(inputFile);
+    if (!fin.is_open())
+    {
+        cout << "Error opening file for process " << pid << ": " << inputFile << endl;
+        return;
+    }
+
+    string line;
+    int index = 0;
+    while (getline(fin, line))
+    {
+        int number = stoi(line);
+        int page = getPage(number, pid);
+        accessMap[page].push_back(index++);
+    }
+    fin.close();
+
+    rep.lock();
+    processAccessMap[pid] = move(accessMap); // Store the map for the process
+    rep.unlock();
+}
 int getByte(int number)
 {
     return number % PAGE_SIZE;
@@ -133,12 +157,15 @@ string getinputFile(int id)
 }
 string getoutputFile(int id)
 {
-    return "output" + to_string(id) + ".txt";
+    return "output" + to_string(id) + policy + ".txt";
 }
 void MMU(PageTable &P)
 {
 
     string input = getinputFile(P.getPid());
+    if(policy == "MRU" || policy == "Optimal"){
+        populateAccessMap(P.getPid(),input);
+    }
     ifstream fin(input);
     if (!fin.is_open())
     {
@@ -184,8 +211,12 @@ void MMU(PageTable &P)
             fout << c << endl;
         }
     }
-    fout << "Total number of hits ->" << hit << endl;
-    fout << "Total number of miss ->" << miss << endl;
+    fout << "Total number of hits -> " << hit << endl;
+    fout << "Total number of miss -> " << miss << endl;
+    double hitrate = double(hit)/(hit + miss);
+    double missrate = double(miss) / (hit + miss);
+    fout<<"Hit rate is -> "<<hitrate*100<<endl;
+    fout<<"Miss rate is -> "<<missrate*100<<endl;
     fout.close();
     fin.close();
 }

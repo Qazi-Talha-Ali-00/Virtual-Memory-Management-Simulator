@@ -40,15 +40,6 @@ void replace()
         policy.clear();
         policy += "Optimal";
     }
-    if (policy == "Optimal") {
-        int num_accesses, access;
-        cout << "Enter the number of future accesses: ";
-        cin >> num_accesses;
-        cout << "Enter the future access sequence (page numbers): ";
-        for (int i = 0; i < num_accesses; i++) {
-            cin >> access;
-            future_accesses.push_back(access);
-        }
-    }
+
     return;
 }
