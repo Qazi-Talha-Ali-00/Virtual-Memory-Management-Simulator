@@ -14,8 +14,43 @@ queue<int> fifoQueue;    // Used for FIFO
 vector<int> accessOrder; // Used for MRU and LRU
 mutex rep;
 unordered_map<int, unordered_map<int, vector<int>>> processAccessMap;
+unordered_map<int, deque<int>> processAccessOrder;
 
-void populateAccessMap(int pid, const string& inputFile)
+void updateAccessOrderMRU(int pid, int frame)
+{
+    rep.lock();
+
+    // If the process does not have an access deque, create it
+    if (processAccessOrder.find(pid) == processAccessOrder.end())
+    {
+        processAccessOrder[pid] = deque<int>();
+    }
+
+    deque<int> &accessOrder = processAccessOrder[pid];
+
+    // If the frame exists in the deque, remove it
+    auto it = find(accessOrder.begin(), accessOrder.end(), frame);
+    if (it != accessOrder.end())
+    {
+        accessOrder.erase(it);
+    }
+
+    // Add the frame to the back as the most recently used
+    accessOrder.push_back(frame);
+
+    rep.unlock();
+}
+
+int getByte(int number)
+{
+    return number % PAGE_SIZE;
+}
+int getPage(int number, int pid)
+{
+    //  page number
+    return number / PAGE_SIZE;
+}
+void populateAccessMap(int pid, const string &inputFile)
 {
     unordered_map<int, vector<int>> accessMap;
     ifstream fin(inputFile);
@@ -39,15 +74,6 @@ void populateAccessMap(int pid, const string& inputFile)
     processAccessMap[pid] = move(accessMap); // Store the map for the process
     rep.unlock();
 }
-int getByte(int number)
-{
-    return number % PAGE_SIZE;
-}
-int getPage(int number, int pid)
-{
-    //  page number
-    return number / PAGE_SIZE;
-}
 // FIFO eviction policy
 int evictFIFO()
 {
@@ -63,12 +89,27 @@ int evictFIFO()
 int evictMRU()
 {
     rep.lock();
-    if (accessOrder.empty())
-        return -1; // No frame to evict
-    int frame = accessOrder.back();
-    accessOrder.pop_back();
+    int frameToEvict = -1;
+
+    for (const auto &entry : processAccessOrder)
+    {
+        const int pid = entry.first;
+        const deque<int> &accessOrder = entry.second;
+
+        if (!accessOrder.empty())
+        {
+            // The most recently used frame is at the back of the deque
+            int candidateFrame = accessOrder.back();
+            frameToEvict = candidateFrame;
+
+            // Remove this frame from the access order for the process
+            processAccessOrder[pid].pop_back();
+            break;
+        }
+    }
+
     rep.unlock();
-    return frame;
+    return frameToEvict;
 }
 // // LRU eviction policy
 int evictLRU()
@@ -84,7 +125,37 @@ int evictLRU()
 
 int evictOptimal()
 {
-    return -1;
+    rep.lock();
+    int farthest = -1;
+    int frameToEvict = -1;
+
+    for (int i = 0; i < frames; i++)
+    {
+        int page = frame_arr.frameTable[i]->pageNum;
+        int pid = frame_arr.frameTable[i]->Pid;
+
+        if (processAccessMap[pid][page].empty())
+        {
+            // No future access for this page
+            rep.unlock();
+            return i;
+        }
+
+        int nextAccess = processAccessMap[pid][page].front();
+        if (nextAccess > farthest)
+        {
+            farthest = nextAccess;
+            frameToEvict = i;
+        }
+    }
+
+    // Update accessMap of the evicted page
+    int evictedPage = frame_arr.frameTable[frameToEvict]->pageNum;
+    int evictedPid = frame_arr.frameTable[frameToEvict]->Pid;
+
+    processAccessMap[evictedPid][evictedPage].erase(processAccessMap[evictedPid][evictedPage].begin());
+    rep.unlock();
+    return frameToEvict;
 }
 
 Page *pageFault(int number, int pid, PageTable &P)
@@ -163,8 +234,9 @@ void MMU(PageTable &P)
 {
 
     string input = getinputFile(P.getPid());
-    if(policy == "MRU" || policy == "Optimal"){
-        populateAccessMap(P.getPid(),input);
+    if (policy == "MRU" || policy == "Optimal")
+    {
+        populateAccessMap(P.getPid(), input);
     }
     ifstream fin(input);
     if (!fin.is_open())
@@ -213,10 +285,10 @@ void MMU(PageTable &P)
     }
     fout << "Total number of hits -> " << hit << endl;
     fout << "Total number of miss -> " << miss << endl;
-    double hitrate = double(hit)/(hit + miss);
+    double hitrate = double(hit) / (hit + miss);
     double missrate = double(miss) / (hit + miss);
-    fout<<"Hit rate is -> "<<hitrate*100<<endl;
-    fout<<"Miss rate is -> "<<missrate*100<<endl;
+    fout << "Hit rate is -> " << hitrate * 100 << endl;
+    fout << "Miss rate is -> " << missrate * 100 << endl;
     fout.close();
     fin.close();
 }
