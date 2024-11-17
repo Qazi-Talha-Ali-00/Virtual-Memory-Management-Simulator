@@ -18,25 +18,23 @@ unordered_map<int, deque<int>> processAccessOrder;
 
 void updateAccessOrderMRU(int pid, int frame)
 {
-    rep.lock();
+     rep.lock();
 
-    // If the process does not have an access deque, create it
-    if (processAccessOrder.find(pid) == processAccessOrder.end())
-    {
-        processAccessOrder[pid] = deque<int>();
-    }
+    deque<int>& accessOrder = processAccessOrder[pid];
 
-    deque<int> &accessOrder = processAccessOrder[pid];
-
-    // If the frame exists in the deque, remove it
+    // Remove the frame if it exists
     auto it = find(accessOrder.begin(), accessOrder.end(), frame);
-    if (it != accessOrder.end())
-    {
+    if (it != accessOrder.end()) {
         accessOrder.erase(it);
     }
 
-    // Add the frame to the back as the most recently used
+    // Add the frame to the back
     accessOrder.push_back(frame);
+
+    // Trim the deque size to avoid overgrowth
+    while (accessOrder.size() > frames) {
+        accessOrder.pop_front();
+    }
 
     rep.unlock();
 }
@@ -91,19 +89,13 @@ int evictMRU()
     rep.lock();
     int frameToEvict = -1;
 
-    for (const auto &entry : processAccessOrder)
-    {
+    for ( auto &entry : processAccessOrder) {
         const int pid = entry.first;
-        const deque<int> &accessOrder = entry.second;
+        auto &accessOrder = entry.second;
 
-        if (!accessOrder.empty())
-        {
-            // The most recently used frame is at the back of the deque
-            int candidateFrame = accessOrder.back();
-            frameToEvict = candidateFrame;
-
-            // Remove this frame from the access order for the process
-            processAccessOrder[pid].pop_back();
+        if (!accessOrder.empty()) {
+            frameToEvict = accessOrder.back();
+            accessOrder.pop_back();
             break;
         }
     }
@@ -170,7 +162,7 @@ Page *pageFault(int number, int pid, PageTable &P)
         {
             // copy from the seondary memory to main memory
             mtx[i].lock();
-            main_arr.memory[i] = secondary_arr.Smemory[address];
+            main_arr.memory[i] = secondary_arr.Smemory[address+page];
             frame_arr.frameTable[i]->pageNum = page;
             frame_arr.frameTable[i]->Pid = pid;
             P.table[page]->setFrame(i);
@@ -205,7 +197,7 @@ Page *pageFault(int number, int pid, PageTable &P)
 
         auto element = mem.process[evictedPid];
         element->table[evictedPage]->setPresent(false);
-        main_arr.memory[evictFrame] = secondary_arr.Smemory[address];
+        main_arr.memory[evictFrame] = secondary_arr.Smemory[address+page];
         frame_arr.frameTable[evictFrame]->pageNum = page;
         frame_arr.frameTable[evictFrame]->Pid = P.getPid();
         P.table[page]->setPresent(true);

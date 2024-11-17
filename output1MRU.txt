@@ -616,8 +616,8 @@ R
 N
 N
 W
-B
 R
+R
 N
 R
 N
@@ -661,8 +661,8 @@ N
 R
 L
 W
-N
 N
+W
 L
 N
 R
@@ -713,8 +713,8 @@ R
 L
 W
 R
-G
 L
+L
 R
 W
 W
@@ -1554,8 +1554,8 @@ W
 W
 R
 R
-N
 W
+W
 L
 R
 L
@@ -1907,11 +1907,11 @@ L
 W
 R
 W
-N
 N
 W
 W
 W
+W
 R
 R
 N
@@ -1930,6 +1930,7 @@ R
 N
 W
 N
+W
 L
 W
 N
@@ -1948,6 +1949,7 @@ L
 W
 N
 N
+L
 L
 W
 R

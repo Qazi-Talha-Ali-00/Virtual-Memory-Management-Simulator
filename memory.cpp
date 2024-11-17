@@ -50,6 +50,7 @@ public:
     void addProcess(int pid, int startPage) {
         processStartPage[pid] = startPage;
     }
+
     int getAddress(int id){
         return processStartPage[id];
     }
